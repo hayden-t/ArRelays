@@ -1,10 +1,9 @@
 #include <Wire.h>
-#include <LiquidCrystal.h>
+#include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
-#include <Button.h>
 
 typedef struct {
-  char name[15];//max characters for name
+  char name[16];//max characters for name
   boolean toggle;//if false, = momentary
   boolean status;//on or off
   boolean saved;//if status saved to eeprom
@@ -16,34 +15,30 @@ const int maxRelays = 13;//must equal number of specified relays
 
 relay relays[maxRelays + 1] = {
   {""},//not used
-  {"ROOF LIGHT BAR", true, false, true, true, 23},
-  {"BULL BAR LIGHT", true, false, true, true, 25},
-  {"LED SPOTTIES", true, false, true, true, 27},
-  {"9\" HID LIGHT", true, false, true, true, 29},
-  {"7\" HID LIGHT", true, false, true, true, 31},
-  {"LEFT LED BAR", true, false, true, false, 33},
-  {"RIGHT LED Bar", true, false, true, false, 35},
-  {"REAR LED BAR", true, false, true, false, 37},
-  {"AUX BATTERY", true, false, false, false, 39},
-  {"WINCH MASTER", true, false, false, false, 41},
-  {"WINCH IN", false, false, false, false, 43},
-  {"WINCH OUT", false, false, false, false, 45},
-  {"REVERSE CAMERA", true, false, false, false, 47}      
+  {"ROOF LIGHT BAR ", true, false, true, true, 23},
+  {"BULL BAR LIGHT ", true, false, true, true, 25},
+  {"LED SPOTTIES   ", true, false, true, true, 27},
+  {"9\" HID LIGHT  ", true, false, true, true, 29},
+  {"7\" HID LIGHT  ", true, false, true, true, 31},
+  {"LEFT LED BAR   ", true, false, true, false, 33},
+  {"RIGHT LED Bar  ", true, false, true, false, 35},
+  {"REAR LED BAR   ", true, false, true, false, 37},
+  {"AUX BATTERY    ", true, false, false, false, 39},
+  {"WINCH MASTER   ", true, false, false, false, 41},
+  {"WINCH IN       ", false, false, false, false, 43},
+  {"WINCH OUT      ", false, false, false, false, 45},
+  {"REVERSE CAMERA ", true, false, false, false, 47}      
 };
 
 int highBeamPin = 53;//input pin detect high beam status
 boolean highBeam = false;//high beam status
 
 //init LCD
-LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
 int lcdLines = 4;
 
 int menuState = 1;
 
-Button down = Button(A0, BUTTON_PULLUP_INTERNAL);
-Button up = Button(A1, BUTTON_PULLUP_INTERNAL);
-Button on = Button(A2, BUTTON_PULLUP_INTERNAL);
-Button off = Button(A3, BUTTON_PULLUP_INTERNAL);
 
 void setup() {
   // put your setup code here, to run once:
@@ -53,6 +48,7 @@ void setup() {
   
   //Wire.begin();
   lcd.begin(20, lcdLines);
+  lcd.backlight();
   
    for(int i = 1; i <= maxRelays; i++){
        pinMode(relays[i].pin, OUTPUT);
@@ -90,45 +86,45 @@ void drawMenu(void){
           if(relays[menuState + i].status)lcd.print("ON ");
           else lcd.print("OFF");          
           
-      }else if(!menuState)lcd.print("Back");
+      }
+      else if(!menuState)lcd.print("Back");
+      else lcd.print("                    ");
       
    } 
 }
+int key = 247;//no key
 void checkButtons(void){
+  
+ Wire.requestFrom(0x26,1);
  
-//down button 
-
- if(down.uniquePress()){
-    if(menuState < maxRelays)menuState++;    
-    lcd.clear();
-  }
-  
-//up button  
-  
- if(up.uniquePress()){
-      if(menuState > 1)menuState--;
-      lcd.clear();
+ if(Wire.available())     //If the request is available
+    {
+     byte data = Wire.read();       //Receive the data
+     
+     if(data != key){//key changed state
+        key = data;
+        //lcd.clear(); //not needed ?
+        switch (key){
+             case 246: //up
+               if(menuState > 1)menuState--;
+             break;
+             case 245://down              
+               if(menuState < maxRelays)menuState++;                  
+             break;
+             case 243: //enter
+                 relays[menuState].status = true;                    
+                 if(relays[menuState].saved)EEPROM.write(menuState, 1); 
+             break;
+             case 231: //off/escape
+                   relays[menuState].status = false;
+                   if(relays[menuState].saved)EEPROM.write(menuState, 0);
+             break;
+             case 247://no key
+                 if(!relays[menuState].toggle) relays[menuState].status = false;
+             break;
+        }    
    }
-  
-//on/enter button 
-
-  if(relays[menuState].toggle){
-     if(on.uniquePress()){
-      relays[menuState].status = true;
-      lcd.clear();
-      if(relays[menuState].saved)EEPROM.write(menuState, 1);
-     }
-  }else{
-      if(on.isPressed())relays[menuState].status = true;
-      else relays[menuState].status = false;
-   }
-   
-  //off button 
-   if(off.uniquePress()){
-       relays[menuState].status = false;
-       if(relays[menuState].saved)EEPROM.write(menuState, 0);
-    }
-  
+}
   //if(((millis() - buttonTimer) > 10000) && (viewEvent != 1 || openMenu))home();
 }
 
