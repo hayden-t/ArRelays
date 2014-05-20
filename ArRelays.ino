@@ -2,6 +2,11 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 
+const int LCD_TIMEOUT = 10;//seconds
+
+const int LCD_ADDRESS = 0x27;
+const int BUTTON_ADDRESS = 0x26;
+
 typedef struct {
   char name[16];//max characters for name
   boolean toggle;//if false, = momentary
@@ -34,11 +39,10 @@ int highBeamPin = 53;//input pin detect high beam status
 boolean highBeam = false;//high beam status
 
 //init LCD
-LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+LiquidCrystal_I2C lcd(LCD_ADDRESS, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
 int lcdLines = 4;
 
 int menuState = 1;
-
 
 void setup() {
   // put your setup code here, to run once:
@@ -93,39 +97,45 @@ void drawMenu(void){
    } 
 }
 int key = 247;//no key
+unsigned long buttonTimer = 1;
+
 void checkButtons(void){
-  
- Wire.requestFrom(0x26,1);
+
+ Wire.requestFrom(BUTTON_ADDRESS,1);
  
  if(Wire.available())     //If the request is available
     {
      byte data = Wire.read();       //Receive the data
      
-     if(data != key){//key changed state
-        key = data;
-        //lcd.clear(); //not needed ?
-        switch (key){
-             case 246: //up
-               if(menuState > 1)menuState--;
-             break;
-             case 245://down              
-               if(menuState < maxRelays)menuState++;                  
-             break;
-             case 243: //enter
-                 relays[menuState].status = true;                    
-                 if(relays[menuState].saved)EEPROM.write(menuState, 1); 
-             break;
-             case 231: //off/escape
-                   relays[menuState].status = false;
-                   if(relays[menuState].saved)EEPROM.write(menuState, 0);
-             break;
-             case 247://no key
-                 if(!relays[menuState].toggle) relays[menuState].status = false;
-             break;
-        }    
-   }
+     if(data != key){//key changed state       
+       key = data;
+       if(buttonTimer){//awake          
+          switch (key){
+               case 246: //up
+                 if(menuState > 1)menuState--;
+               break;
+               case 245://down              
+                 if(menuState < maxRelays)menuState++;                  
+               break;
+               case 243: //enter
+                   relays[menuState].status = true;                    
+                   if(relays[menuState].saved)EEPROM.write(menuState, 1); 
+               break;
+               case 231: //off/escape
+                     relays[menuState].status = false;
+                     if(relays[menuState].saved)EEPROM.write(menuState, 0);
+               break;
+               case 247://no key
+                   if(!relays[menuState].toggle) relays[menuState].status = false;
+               break;
+          }              
+       }else{//wakeup         
+           lcd.backlight();         
+       }
+       buttonTimer = millis();
+     }
 }
-  //if(((millis() - buttonTimer) > 10000) && (viewEvent != 1 || openMenu))home();
+  if(millis() - buttonTimer > (LCD_TIMEOUT * 1000) && key == 247){buttonTimer = 0;lcd.noBacklight();}//screensaver or lcd.off();
 }
 
 void outputRelays(void){
