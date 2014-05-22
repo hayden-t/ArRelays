@@ -47,8 +47,7 @@ int menuState = 1;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  
-  Serial.print("Controller Starting Up...");
+
   
   //Wire.begin();
   lcd.begin(20, lcdLines);
@@ -61,7 +60,17 @@ void setup() {
   pinMode(highBeamPin, INPUT);   
   
   loadSettings();
-
+  
+  Serial.print("Controller Starting Up...");
+  lcd.print("   Arduino Relay");
+  lcd.setCursor(0, 1);
+  lcd.print("     Controller");
+  lcd.setCursor(0, 2);
+  lcd.print(" ");
+  lcd.setCursor(0, 3);
+  lcd.print(" www.httech.com.au");
+  delay(5000);  
+  lcd.clear();
 }
 
 void loop() {
@@ -157,5 +166,5 @@ void loadSettings(void){
   for(int i = 1; i <= maxRelays; i++){       
       if(relays[i].saved)relays[i].status = (EEPROM.read(i) == 1 ? true : false);
   }
-
+  
 }
