@@ -127,12 +127,11 @@ void checkButtons(void){
                  if(menuState < maxRelays)menuState++;                  
                break;
                case 243: //enter
-                   relays[menuState].status = true;                    
-                   if(relays[menuState].saved)EEPROM.write(menuState, 1); 
+                   relays[menuState].status = (relays[menuState].status ? false:true);             
+                   if(relays[menuState].saved)EEPROM.write(menuState, int(relays[menuState].status));
                break;
-               case 231: //off/escape
-                     relays[menuState].status = false;
-                     if(relays[menuState].saved)EEPROM.write(menuState, 0);
+               case 231: //escape
+
                break;
                case 247://no key
                    if(!relays[menuState].toggle) relays[menuState].status = false;
