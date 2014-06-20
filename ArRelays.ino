@@ -10,9 +10,9 @@ const int BUTTON_ADDRESS = 0x26;
 typedef struct {
   char name[16];//max characters for name
   boolean toggle;//if false, = momentary
-  boolean status;//on or off
+  byte status;//on/off/auto 0/1/2
   boolean saved;//if status saved to eeprom
-  boolean highbeam;//dependant on high beam active
+  int depends;//pin relay dependant on active (for auto) 0 = none
   int pin;//which pin number relay is connected to
 } relay;
 
@@ -20,23 +20,20 @@ const int maxRelays = 13;//must equal number of specified relays
 
 relay relays[maxRelays + 1] = {
   {""},//not used
-  {"ROOF LIGHT BAR ", true, false, true, true, 23},
-  {"BULL BAR LIGHT ", true, false, true, true, 25},
-  {"LED SPOTTIES   ", true, false, true, true, 27},
-  {"9\" HID LIGHT  ", true, false, true, true, 29},
-  {"7\" HID LIGHT  ", true, false, true, true, 31},
-  {"LEFT LED BAR   ", true, false, true, false, 33},
-  {"RIGHT LED Bar  ", true, false, true, false, 35},
-  {"REAR LED BAR   ", true, false, true, false, 37},
-  {"AUX BATTERY    ", true, false, false, false, 39},
-  {"WINCH MASTER   ", true, false, false, false, 41},
-  {"WINCH IN       ", false, false, false, false, 43},
-  {"WINCH OUT      ", false, false, false, false, 45},
-  {"REVERSE CAMERA ", true, false, false, false, 47}      
+  {"ROOF LIGHT BAR ", true, 0, true, 53, 23},
+  {"BULL BAR LIGHT ", true, 0, true, 53, 25},
+  {"LED SPOTTIES   ", true, 0, true, 53, 27},
+  {"9\" HID LIGHT  ", true, 0, true, 53, 29},
+  {"7\" HID LIGHT  ", true, 0, true, 53, 31},
+  {"LEFT LED BAR   ", true, 0, true, 0, 33},
+  {"RIGHT LED Bar  ", true, 0, true, 0, 35},
+  {"REAR LED BAR   ", true, 0, true, 0, 37},
+  {"AUX BATTERY    ", true, 0, false, 0, 39},
+  {"WINCH MASTER   ", true, 0, false, 0, 41},
+  {"WINCH IN       ", false, 0, false, 0, 43},
+  {"WINCH OUT      ", false, 0, false, 0, 45},
+  {"REVERSE CAMERA ", true, 0, false, 0, 47}
 };
-
-int highBeamPin = 53;//input pin detect high beam status
-boolean highBeam = false;//high beam status
 
 //init LCD
 LiquidCrystal_I2C lcd(LCD_ADDRESS, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
@@ -55,10 +52,9 @@ void setup() {
   
    for(int i = 1; i <= maxRelays; i++){
        pinMode(relays[i].pin, OUTPUT);
-  }
-  
-  pinMode(highBeamPin, INPUT);   
-  
+       if(relays[i].depends > 0)pinMode(relays[i].depends, INPUT);
+  }  
+ 
   loadSettings();
   
   Serial.print("Controller Starting Up...");
@@ -96,8 +92,9 @@ void drawMenu(void){
           lcd.print(" ");
           
           lcd.setCursor(17, i);
-          if(relays[menuState + i].status)lcd.print("ON ");
-          else lcd.print("OFF");          
+          if(relays[menuState + i].status == 0)lcd.print("OFF");
+          if(relays[menuState + i].status == 1)lcd.print("ON ");
+          if(relays[menuState + i].status == 2)lcd.print("AUT");
           
       }
       else if(!menuState)lcd.print("Back");
@@ -127,8 +124,9 @@ void checkButtons(void){
                  if(menuState < maxRelays)menuState++;                  
                break;
                case 243: //enter
-                   relays[menuState].status = (relays[menuState].status ? false:true);             
-                   if(relays[menuState].saved)EEPROM.write(menuState, int(relays[menuState].status));
+                   relays[menuState].status++;
+                   if((relays[menuState].depends == 0 && relays[menuState].status > 1) || relays[menuState].status > 2)relays[menuState].status = 0;
+                   if(relays[menuState].saved)EEPROM.write(menuState, relays[menuState].status);
                break;
                case 231: //escape
 
@@ -146,16 +144,16 @@ void checkButtons(void){
   if(millis() - buttonTimer > (LCD_TIMEOUT * 1000) && key == 247){buttonTimer = 0;lcd.noBacklight();}//screensaver or lcd.off();
 }
 
-void outputRelays(void){
-  
-    highBeam = (analogRead(highBeamPin) > 205 ? true : false);//appx. 1 volt of more
+void outputRelays(void){    
   
      for(int i = 1; i <= maxRelays; i++){
-       if(relays[i].highbeam){//is subject to high beam
-         if(highBeam)digitalWrite(relays[i].pin, relays[i].status);//high beam on
-         else digitalWrite(relays[i].pin, false);//high beam off
+       if(relays[menuState].status == 2){// auto
+         
+         if(analogRead(relays[i].depends) > 205)digitalWrite(relays[i].pin, true);
+         else digitalWrite(relays[i].pin, false);
+         
        }
-       else digitalWrite(relays[i].pin, relays[i].status);//not subject to high beam
+       else digitalWrite(relays[i].pin, relays[i].status);
     }  
     
 }
