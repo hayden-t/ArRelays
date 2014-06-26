@@ -12,7 +12,7 @@ typedef struct {
   boolean toggle;//if false, = momentary
   byte status;//on/off/auto 0/1/2
   boolean saved;//if status saved to eeprom
-  int depends;//pin relay dependant on active (for auto) 0 = none
+  int depends;//pin relay dependant on active (for auto) 0 = none (uses digital read, >=3v : HIGH/ON , <=2v : LOW/OFF) (uses pullups)
   int pin;//which pin number relay is connected to
 } relay;
 
@@ -52,7 +52,7 @@ void setup() {
   
    for(int i = 1; i <= maxRelays; i++){
        pinMode(relays[i].pin, OUTPUT);
-       if(relays[i].depends > 0)pinMode(relays[i].depends, INPUT);
+       if(relays[i].depends > 0)pinMode(relays[i].depends, INPUT_PULLUP);
   }  
  
   loadSettings();
@@ -144,14 +144,12 @@ void checkButtons(void){
   if(millis() - buttonTimer > (LCD_TIMEOUT * 1000) && key == 247){buttonTimer = 0;lcd.noBacklight();}//screensaver or lcd.off();
 }
 
-void outputRelays(void){    
+void outputRelays(void){
   
      for(int i = 1; i <= maxRelays; i++){
-       if(relays[menuState].status == 2){// auto
-         
-         if(analogRead(relays[i].depends) > 205)digitalWrite(relays[i].pin, true);
-         else digitalWrite(relays[i].pin, false);
-         
+       if(relays[i].status == 2){// auto
+         if(digitalRead(relays[i].depends))digitalWrite(relays[i].pin, true);
+         else digitalWrite(relays[i].pin, false);         
        }
        else digitalWrite(relays[i].pin, relays[i].status);
     }  
@@ -161,7 +159,7 @@ void outputRelays(void){
 void loadSettings(void){
   
   for(int i = 1; i <= maxRelays; i++){       
-      if(relays[i].saved)relays[i].status = (EEPROM.read(i) == 1 ? true : false);
+      if(relays[i].saved)relays[i].status = EEPROM.read(i);
   }
   
 }
